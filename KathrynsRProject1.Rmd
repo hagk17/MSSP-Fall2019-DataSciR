@@ -1,0 +1,508 @@
+---
+title: "RFinal1"
+author: "Kathryn Haglich"
+date: "12/13/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(ggplot2)
+library(ggmosaic)
+library(esquisse)
+library(shiny)
+library(shinydashboard)
+
+library(readxl)
+library(janitor)
+library(magrittr)
+
+library(maps)
+library(maptools)
+library(mapproj)
+library(ggmap)
+
+library(leaflet)
+library(leaflet.extras)
+
+library(wordcloud)
+
+library(gutenbergr)
+library(tidyverse)
+library(tidytext)
+
+```
+
+# List of Books Included 
+Moby Dick 15 
+Peter Pan 16 
+The Book of Mormon 17 
+Paradise Lost 20 or 26 
+Aesop's Fables 28 
+The Bible 30 
+The Scarlet Letter 33 
+The Time Machine 35 
+The Legend of Sleepy Hallow 41 
+Anne of Green Gables 45
+A Christmas Carol 46
+Aladdin 57
+The Communist Manifesto 61 
+The Red Badge of Courage 73
+The Adventures of Tom Sawyer 74
+The House of the Seven gables 77 
+Frankenstein 84 
+A Tale of Two Cities 98 
+Collected Articles of Frederick Douglass 99 
+Around the World in Eighty Days 103 
+The Return of Sherlock Holmes 108 
+The Secret Garden 113 
+Les Miserables 135 
+The Jungle 140 
+Mansfield Park 141
+Common Sense 147 
+The Republic 150 
+Sense and Sensibility 161
+Twenty Thousand Leagues Under the Sea 164
+The Picture of Dorian Gray 174 
+The Phantom of the Opera 174 
+Uncle Tom's Cabin 203
+Call of the Wild 215
+The Aeneid 228 
+The Jungle Book 236 
+Myths and Legends of the Sioux 341
+Dracula 345
+Little Women 514 
+The Bobbsey Twins in the Country 714 
+Robin Hood 832
+White Fang 910 
+Beowulf 981
+Don Quixote 996 
+Divine comedy Longfellow's Translation Complete 1004 
+The Tragedy of Romeo and Juliet 1112
+Much Ado about Nothing 1118 
+The Tragedy of Julius Caesar 1120 
+The Tragedy of Hamlet, Prince of Denmark 1122
+The Tragedy of Macbeth 1129 
+The Prince Machiavelli 1232 
+
+#Code 
+
+```{r choose books you want to focus on, include = FALSE}
+booksId = sort(c(999999, 1232, 1129, 1122, 1120, 1118, 1112, 1004, 996, 981, 910, 832, 714, 514, 345, 341, 236, 228, 215, 203, 175, 174, 164, 161, 150, 147, 141, 140, 135, 113, 108, 103, 99, 98, 84, 77, 74, 73, 61, 57, 46, 45, 41, 35, 33, 30, 28, 20, 17, 16, 15))
+
+numBooks = length(booksId)
+
+miniMeta <- gutenberg_metadata %>% filter(gutenberg_id %in% booksId )
+
+bookTitles <-as.vector(miniMeta$title)
+
+bookData <- cbind(booksId, bookTitles)
+```
+
+gutenberg_download(id) gets you the book with that id number
+also, the index in your id and title vectors correspond 
+
+```{r country cleaning, include = FALSE}
+data("world.cities") #data set with lists of cities and countries 
+
+#set up the world data set to use for the latitudes and longitudes 
+world <- world.cities %>% 
+  rename(country = country.etc) %>% 
+  filter(capital == 1)%>% select(-c(pop,capital))
+
+world$country <- tolower(world$country)
+world$country[world$country == "korea north"] <- "north korea"
+world$country[world$country == "korea south"] <- "south korea"
+world$country[world$country == "uk"] <- "united kingdom"
+world$country[world$country == "usa"] <- "united states"
+
+newGB <- c("london", "great britain", 	51.52, 	-0.10, 1)
+newEngland <- c("london", "england", 	51.52, 	-0.10, 1)
+newUS <- c("washington", "united states of america", 38.91, -77.02, 1)
+newScotland <- c("edinburgh", "scotland", 55.95, -3.22, 0)
+world <- rbind(world, newGB, newEngland, newUS,newScotland)
+
+#list of countries 
+countries <- unique(world$country)
+```
+
+
+
+```{r frequency of places mentioned in book, include = FALSE}
+
+#Case Study: Paradise Lost
+
+gutNum <- 20
+
+ book <- gutenberg_download(gutNum)
+ book %<>%
+   unnest_tokens(word, text) %>%
+   anti_join(stop_words)
+ bkCount <-  book %>% count(word, sort = TRUE)
+
+
+#specific to paradise lost 
+
+bkCountries <- intersect(countries, bkCount$word)#list of countries in book 
+bkCountryFreq <- filter(bkCount, word %in% bkCountries) %>%
+  rename(country = word) #frequencies of countries 
+nameFreq <- paste(bkCountryFreq$country, bkCountryFreq$n, sep = " ")
+bkCountryFreq <- cbind(bkCountryFreq, nameFreq)
+#data set of country, lat long and frequency specific to book 
+bkMini <- world %>% filter(country %in% bkCountries)
+bkFull <- left_join(bkMini,bkCountryFreq)
+
+bkFull$lat <- as.double(bkFull$lat)
+bkFull$long <- as.double(bkFull$long)
+
+ 
+#create an interactive map 
+leaflet(bkFull)%>%
+       setView(lng = 0, lat = 0, zoom = 1)%>%
+       addTiles()%>%
+       addCircles(data = bkFull, lat = ~lat, lng = ~long, weight = 8, 
+                  radius = 300, popup = ~as.character(nameFreq))
+
+
+```
+
+
+
+
+
+```{r sentiment analysis, include = FALSE}
+# #using the number one to get a measure of positive and negative 
+# get_sentiments("afinn")
+# 
+# #got my book 
+# tidyBook <- book %>%
+#   mutate(linenumber = row_number()) #%>%
+# #  unnest_tokens(word, text)
+# 
+# 
+# tidy_books <- austen_books() %>%
+#   group_by(book) %>%
+#   mutate(linenumber = row_number()) %>%
+#   ungroup() %>%
+#   unnest_tokens(word, text)
+# 
+# 
+# 
+# bookSentiment <- book %>%
+#   inner_join(get_sentiments("afinn")) #%>%
+#  # count(book, index = linenumber %/% 80, sentiment) %>%
+#  # spread(sentiment, n, fill = 0) %>%
+#  # mutate(sentiment = positive - negative)
+```
+
+```{r, include = FALSE}
+#clean book 
+# tidypl <- gutenberg_download(gutNum) %>%
+#   unnest_tokens(word, text) %>%
+#   anti_join(stop_words)
+
+#word counts 
+# tidypl %>%
+#   count(word, sort = TRUE)
+# 
+# af <- get_sentiments("afinn")
+
+# sentimentpl <- tidypl %>%
+# #  mutate(linenumber = row_number()) %>%
+#   inner_join(get_sentiments("afinn")) #%>%
+
+
+
+```
+
+
+
+```{r word clouds yay, include = FALSE}
+#library(reshape2)
+# %>%
+ # inner_join(get_sentiments("bing")) %>%
+ # count(word, sentiment, sort = TRUE) %>%
+ # acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+ # comparison.cloud(colors = c("gray20", "gray80"),
+  #                 max.words = 100)
+
+bookCloud <- bkCount %>%
+  with(wordcloud(word, n, max.words = 100))
+
+
+```
+
+
+
+```{r THE SHINY APP WOOHOO, include=FALSE}
+#icon = icon("")
+#<i class="fas fa-book-open"></i>
+
+############## USER INTERFACE ##############
+ui2 <- dashboardPage(
+  dashboardHeader(title = "Literary Analysis"),
+  
+  dashboardSidebar(
+    sidebarMenu(
+      radioButtons("option", "What Do You want to Explore?",
+               c(
+                 "Sentiments" = "sentiment",
+                 "Word Cloud" = "cloud",
+                 "Maps!" = "maps")),
+      
+      #selectInput("xVariable", "X Variable", interAll),
+      #selectInput("yVariable", "Y Variable", interAll),#ENDS selectInput
+      selectInput("book", "Take a look in this book", bookTitles) #ENDS selectInput
+      
+    )#ENDS sidebarMenu 
+  ),#ENDS dashboardSidebar
+  
+  
+   dashboardBody(
+     
+     mainPanel(leafletOutput("mapPlot"),
+               plotOutput("cloudy"))
+     #ENDS mainPanel
+     
+   )#ENDS dashboardBody
+)
+
+
+
+############## SERVER ##############
+server2 <- function(input, output) {
+  
+
+######### Sets up the server stuff for the maps ####################
+  wordFreqsOfChosen <- reactive({
+    bookName = input$book
+    #gutenberg id for chosen book 
+    gutNum <- bookData[1,bookData$bookTitles == bookName]
+    #gets the data for the chosen book 
+    chosenBook <- gutenberg_download(gutNum)
+    chosenBook %<>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words)
+    bkCount <-  chosenBook %>% count(word, sort = TRUE)
+    return(bkCount)
+  })
+  
+  countryData <- reactive({ 
+    
+    bkcount <- wordFreqsOfChosen() #data set of word freqs
+    bkCountries <- intersect(countries, bkcount[,2])#list of countries in book 
+    
+    #isolates countries of interest from word frequency 
+    bkCountryFreq <- bkcount %>% filter(word %in% bkCountries) %>%
+        rename(country = word) 
+    #makes nices labels for the map 
+    nameFreq <- paste(bkCountryFreq[,1], bkCountryFreq[,2], sep = " ")
+    bkCountryFreq <- cbind(bkCountryFreq, nameFreq)
+    
+    #finds the countries of interest from main world data set 
+    bkMini <- world %>% filter(country %in% bkCountries)
+    #combines info from world data set to the frequencies and labels 
+    bkFull <- left_join(bkMini,bkCountryFreq)
+    
+    #makes latitudes and longitudes doubles 
+    bkFull$lat <- as.double(bkFull[,3])
+    bkFull$long <- as.double(bkFull[,4])
+    
+    return(bkFull)
+    })
+  
+    finalMap <- reactive({
+      if(input$option == "maps"){
+      mapData <- countryData()
+      theMap <- leaflet(mapData)%>%
+       setView(lng = 0, lat = 0, zoom = 1)%>%
+       addTiles()%>%
+       addCircles(data = mapData, lat = ~lat, lng = ~long, weight = 8,
+                  radius = 300, popup = ~as.character(nameFreq))
+      return(theMap)
+      }
+    })
+  
+  # ERROR: $ operator is invalid for atomic vectors 
+     output$mapPlot <- renderLeaflet({ finalMap() })
+      
+     
+######### Sets up the server stuff for the cloud ####################
+     makeCloud <- reactive({
+       if(input$option == "cloud")
+       bookCloud <- wordFreqsOfChosen() %>%
+          with(wordcloud(word, n, max.words = 100))
+       return(bookCloud)
+     })
+     
+     # ERROR: $ operator is invalid for atomic vectors 
+     output$cloudy <- renderPlot({makeCloud()})
+     
+     
+} #ENDS function()
+
+
+shinyApp(ui2, server2)
+    
+
+
+
+```
+
+
+
+
+```{r scraped but entertaining paradise lost, include = FALSE}
+#### Experimenting ####
+
+#cleaning city names 
+#cityList <- tolower(unique(world.cities$name))
+#plCities <- intersect(cityList, plCount$word)
+ 
+# plCities <- intersect(cityList, plCount$word)#cities in paradise lost
+# plCountries <- intersect(countryList, plCount$word)#countries in paradise lost 
+
+
+# plCityData <- world.cities %>% 
+#   filter(name %in% plCities) %>% #filter by cities mentioned 
+#   filter(country.etc %in% plCountries)
+
+
+
+
+#### RANDOM STUFF ####
+######### Sets up the server stuff for the question displays ####################
+  
+  # USunq <- reactive({USUnique[c(1:length(USUnique))]})
+  # Japanunq <- reactive({JapanUnique[c(1:length(JapanUnique))]})
+  # Russiaunq <- reactive({RussiaUnique[c(1:length(RussiaUnique))]})
+  # 
+  # intAll <- reactive({interAll[c(1:length(interAll))]})
+  # intUSR <- reactive({interUSRus[c(1:length(interUSRus))]})
+  # intUSJ <- reactive({interUSJap[c(1:length(interUSJap))]})
+  # intRJ <- reactive({interUSJap[c(1:length(interUSJap))]})
+  # 
+  # allNot <- reactive({allNotAsked[c(1:length(allNotAsked))]})
+  # USNot <- reactive({notAskedUS[c(1:length(notAskedUS))]})
+  # RNot <- reactive({notAskeRussiaS[c(1:length(notAskedRussia))]})
+  # JNot <- reactive({notAskedJapan[c(1:length(notAskedJapan))]})
+  
+  # chosenSet <- reactive({
+  #   if(input$option == "quest"){
+  #   
+  #     if(input$questVariable == "Unique to US"){return(USunq())}
+  #     if(input$questVariable == "Unique to Russia"){return(Russiaunq())}
+  #     if(input$questVariable == "Unique to Japan"){return(Japanunq())}
+  #   
+  #     if(input$questVariable == "Intersection of All Three"){return(intAll())}
+  #     if(input$questVariable == "Intersection Between US and Russia"){return(intUSR())}
+  #     if(input$questVariable == "Intersection Between US and Japan"){return(intUSJ())}
+  #     if(input$questVariable == "Intersection Between Russia and Japan"){return(intRJ())}
+  #   
+  #     if(input$questVariable == "Not Asked at All"){return(allNot())}
+  #    if(input$questVariable == "Not Asked in US"){return(USNot())}
+  #    if(input$questVariable == "Not Asked in Russia"){return(RNot())}
+  #    if(input$questVariable == "Not Asked in Japan"){return(JNot())}
+  #   }
+  # })
+  
+  # output$QuestionSet <- renderTable(chosenSet())
+
+  
+
+    
+################ Sets up the server stuff for the graphs displays ####################
+  
+#setting up what the graphs would be if the user chooses the single variable option   
+#   graphUS1 <- reactive({
+#     
+#     ggplot(US, aes(x=US[,c(input$xVariable)]))+
+#       geom_bar() +
+#       labs(x = "Chosen Variable", y = "Frequency", title='US')+
+#       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#   })
+#   graphRussia1 <- reactive({
+#     ggplot(data = Russia, aes(x=Russia[,c(input$xVariable)]))+
+#       geom_bar() +
+#       labs(x = "Chosen Variable", y = "Frequency", title='Russia')+
+#       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#     })
+#   graphJapan1 <- reactive({ggplot(data = Japan, aes(x=Japan[,c(input$xVariable)]))+
+#       geom_bar() +
+#       labs(x = "Chosen Variable", y = "Frequency", title='Japan')+
+#       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#     })
+#   
+# 
+#   #setting up what the graphs would be if the user chooses the double variable option 
+#    graphUS2 <- reactive({
+#       ggplot(US, aes(x=US[,c(input$xVariable)], fill = US[,c(input$yVariable)]) ) +
+#       geom_bar(position = "fill") +
+#       scale_fill_viridis_d(option = "viridis") +
+#        labs(x = "Chosen X Variable", y = "Frequency", title='US', fill = "Chosen Y Variable")+
+#       theme_minimal()+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#   })
+#    graphRussia2 <- reactive({
+#    ggplot(Russia, aes(x=Russia[,c(input$xVariable)], fill = Russia[,c(input$yVariable)]) ) +
+#       geom_bar(position = "fill") +
+#       scale_fill_viridis_d(option = "viridis") +
+#        labs(x = "Chosen X Variable", y = "Frequency", title='Russia', fill = "Chosen Y Variable")+
+#       theme_minimal()+theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+# 
+#   })
+#    
+#    graphJapan2 <- reactive({
+#    ggplot(Japan, aes(x=Japan[,c(input$xVariable)], 
+#                      fill = Japan[,c(input$yVariable)]) ) +
+#       geom_bar(position = "fill") +
+#       scale_fill_viridis_d(option = "viridis") +
+#        labs(x = "Chosen X Variable", y = "Frequency", title='Japan', fill = "Chosen Y Variable")+
+#       theme_minimal()+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#   })
+#   
+#   chosenUSGraph <- reactive({
+#     if(input$option == "single"){return(graphUS1())}
+#      if(input$option == "double"){return(graphUS2())}
+#   })
+#   
+#   chosenRussiaGraph <- reactive({
+#     if(input$option == "single"){return(graphRussia1())}
+#      if(input$option == "double"){return(graphRussia2())}
+#   })
+#   
+#   chosenJapanGraph <- reactive({
+#     if(input$option == "single"){return(graphJapan1())}
+#      if(input$option == "double"){return(graphJapan2())}
+#   })
+#   
+# 
+# ### Prints out the graphs 
+#   output$USgraph <- renderPlot({chosenUSGraph()})
+#   output$Russiagraph <- renderPlot({chosenRussiaGraph()})
+#   output$Japangraph <- renderPlot({chosenJapanGraph()})
+#   
+  
+#} #ENDS function()
+
+#ENDS dashboardPage
+
+  #    mainPanel(tableOutput("QuestionSet"),
+  #      fluidRow(splitLayout(style = "border: 1px solid silver:", cellWidths = c(300,300,300), 
+  #                            plotOutput("USgraph"),
+  #                           plotOutput("Russiagraph"),
+  #                            plotOutput("Japangraph")
+  #                            )#ENDS splitLayout
+  #                          )#ENDS fluidRow
+  #               )#ENDS mainPanel 
+  # 
+
+  
+```
+
+
+
+
+
+
+
