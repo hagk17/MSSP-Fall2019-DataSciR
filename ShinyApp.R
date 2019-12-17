@@ -29,7 +29,11 @@ library(tidyverse)
 library(tidytext)
 
 #### Books to Focus On ####
-booksId = sort(c(999999, 1232, 1129, 1122, 1120, 1118, 1112, 1004, 996, 981, 910, 832, 714, 514, 345, 341, 236, 228, 215, 203, 175, 174, 164, 161, 150, 147, 141, 140, 135, 113, 108, 103, 99, 98, 84, 77, 74, 73, 61, 57, 46, 45, 41, 35, 33, 30, 28, 20, 17, 16, 15))
+booksId = sort(c( 1232, 1129, 1122, 1120, 1118, 1112, 1004, 996, 981, 
+                  832, 714, 514, 345, 341, 236, 228, 215, 203, 
+                  175, 174, 164, 161, 150, 147, 141, 140, 135, 113, 
+                  108, 103, 99, 98, 84, 77, 73, 61, 57, 46, 45, 
+                  41, 35, 33, 30, 20, 16, 15))
 
 numBooks = length(booksId)
 
@@ -37,7 +41,9 @@ miniMeta <- gutenberg_metadata %>% filter(gutenberg_id %in% booksId )
 
 bookTitles <-as.vector(miniMeta$title)
 
-bookData <- cbind(booksId, bookTitles)
+bookData <- as.data.frame(cbind(booksId, bookTitles)) %>%  arrange(bookTitles)
+
+bookTitles <- sort(bookTitles)
 
 #### Country Cleaning ####
 
@@ -62,108 +68,79 @@ world <- rbind(world, newGB, newEngland, newUS,newScotland)
 
 #list of countries 
 countries <- unique(world$country)
+#character, vector, not a data frame  
+
+#gets the sentiment 
+snrc <- get_sentiments("nrc")
 
 
-
-
-#### specific to paradise lost experimenting ####
-
-#Case Study: Paradise Lost
-
-#gutNum <- 135
-
- # book <- gutenberg_download(gutNum)
- # book %<>%
- #   unnest_tokens(word, text) %>%
- #   anti_join(stop_words)
- # bkCount <-  book %>% count(word, sort = TRUE)
- # is.data.frame(bkCount)
-
-# bkCountries <- intersect(countries, bkCount$word)#list of countries in book
-# bkCountryFreq <- filter(bkCount, word %in% bkCountries) %>%
-#   rename(country = word) #frequencies of countries
-# nameFreq <- paste(bkCountryFreq$country, bkCountryFreq$n, sep = " ")
-# bkCountryFreq <- cbind(bkCountryFreq, nameFreq)
-# #data set of country, lat long and frequency specific to book
-# bkMini <- world %>% filter(country %in% bkCountries)
-# bkFull <- left_join(bkMini,bkCountryFreq)
-
-# bkFull$lat <- as.double(bkFull$lat)
-# bkFull$long <- as.double(bkFull$long)
-
-
-#create an interactive map 
-# plMap <- leaflet(bkFull)%>%
-#   setView(lng = 0, lat = 0, zoom = 1)%>%
-#   addTiles()%>%
-#   addCircles(data = bkFull, lat = ~lat, lng = ~long, weight = 8,
-#              radius = 300, popup = ~as.character(nameFreq))
-# typeof(plMap)
-# plMap
-
-
-#### word cloud experimentation ####
-# bookCloud <- bkCount %>%
-#   with(wordcloud(word, n, max.words = 10))
-# typeof(bookCloud) #this is Null ???? 
-
-
-#### sentiment analysis experimentation ####
-
-#### reddit scraping experimentation ####
-# library(tidyverse)
-# library(RedditExtractoR)
-# library(magrittr)
-# plReddit <- reddit_urls(search_terms="Sherlock",
-#                   subreddit = "literature",
-#                   sort_by = "new")
-# View(plReddit)
-
-# chosenBook %<>%
-#   unnest_tokens(word, text) %>%
-#   anti_join(stop_words)
-# bkCount <-  chosenBook %>% count(word, sort = TRUE)
-
-#plReddit$title 
-#wordcloud(plReddit$title, max.words = 100)
 
 
 #### SHINY User Interface ####
 ui2 <- dashboardPage(
-  dashboardHeader(title = "Literary Analysis"),
+  dashboardHeader(title = "Literary Comparison Analysis"),
   
   dashboardSidebar(
     sidebarMenu(
-      radioButtons("option", "What Do You want to Explore?",
-                   c(
-                     "Sentiments" = "sentiment",
-                     "Word Cloud" = "cloud",
-                     "Maps!" = "maps")),
-      selectInput("book", "Take a look in this book", bookTitles) #ENDS selectInput
+      radioButtons("option", "What Do You Want to Explore?",
+                   c("My Sentiments Exactly" ="senti",
+                     "Word Clouds" = "cloud",
+                     "Maps of Country References" = "maps")),
+      selectInput("book1", "First, take a look in this book", bookTitles),
+      selectInput("book2", "Now, take a look in this book", bookTitles)
+      #sliderInput("numWords ", "Number of Words to Analyze",  
+                  #min = 10, max = 100, value = 1)
       
-    )#ENDS sidebarMenu 
+    )#ENDS sidebarMenu
+
+      
   ),#ENDS dashboardSidebar
   
   
   dashboardBody(
-    
-    mainPanel(leafletOutput("mapPlot"), #output for map 
-              plotOutput("cloudy")) #output for cloud 
+      
+      fluidRow(
+        splitLayout(style = "border: 1px solid silver:", cellWidths = c(350,350), 
+                    plotOutput("senti1"),
+                    plotOutput("senti2")
+        )#ENDS splitLayout
+      ),
+     
+      
+      fluidRow(
+        splitLayout(style = "border: 1px solid silver:", cellWidths = c(350,350), 
+                           plotOutput("cloud1"),
+                           plotOutput("cloud2")
+      )#ENDS splitLayout
+      ),#ENDS fluidRow
+      fluidRow(
+        splitLayout(style = "border: 1px solid silver:", cellWidths = c(350,350), 
+                    tableOutput("freq1"),
+                    tableOutput("freq2"))#ENDS splitLayout
+      ),#ENDS fluidRow
+      leafletOutput("map1"),
+      leafletOutput("map2")
+      
+    #)# Ends Fluid Row 
+             
+             
+             
+             
     #ENDS mainPanel
     
   )#ENDS dashboardBody
 )
 
-
+#Noteability 
 
 #### SHINY Server ####
 server2 <- function(input, output) {
+
   
-  
-  ######### Sets up the server stuff for the maps ####################
-  wordFreqsOfChosen <- reactive({
-    bookName = input$book # name of book chosen 
-    gutNum <- bookData[1,bookData$bookTitles == bookName] #gutenberg id chosen book 
+  ######### Sets up word frequencies for the two books - WORKS #########
+  wordFreqsOfChosen1 <- reactive({
+    bookName = input$book1 # name of book chosen 
+    gutNum <- bookData[which(bookData$bookTitles == bookName),1] #gutenberg id chosen book 
     chosenBook <- gutenberg_download(gutNum) #gets book data 
     chosenBook %<>%
       unnest_tokens(word, text) %>% #isolates each word into its own row 
@@ -172,71 +149,182 @@ server2 <- function(input, output) {
     return(bkCount) #this is a dataframe 
   })
   
-  countryData <- reactive({ 
+  wordFreqsOfChosen2 <- reactive({
+    bookName = input$book2 # name of book chosen 
+    gutNum <- bookData[which(bookData$bookTitles == bookName),1] #gutenberg id chosen book 
+    chosenBook <- gutenberg_download(gutNum) #gets book data 
+    chosenBook %<>%
+      unnest_tokens(word, text) %>% #isolates each word into its own row 
+      anti_join(stop_words) # gets rid of the stop words 
+    bkCount <-  chosenBook %>% count(word, sort = TRUE) #gets a word count 
+    return(bkCount) #this is a dataframe 
+  })
+  
+  ######### Sets up sentiment clouds for the two books - WORKS #########
+  sentimentGraph1 <- reactive({
+    if(input$option == "senti"){
+    bkSent <- inner_join(wordFreqsOfChosen1(),snrc) 
+    bkSent <- bkSent %>% group_by(sentiment) %>%
+      summarise(freq = n()) %>% arrange(sentiment) %>%
+      na.omit()
+    daGraph <- ggplot(bkSent) +
+      aes(x = sentiment, fill = sentiment, weight = freq) +
+      geom_bar() +
+      scale_fill_hue() +
+      theme_minimal() + 
+      theme(axis.text.x = element_text(angle = 45))+ 
+      ggtitle(input$book1)+ theme(legend.position = "none")
+    return(daGraph)
+    }
+  })
+
+  output$senti1 <- renderPlot(sentimentGraph1())
+  
+  sentimentGraph2 <- reactive({
+    if(input$option == "senti"){
+      bkSent <- inner_join(wordFreqsOfChosen2(),snrc) 
+      bkSent <- bkSent %>% group_by(sentiment) %>%
+        summarise(freq = n()) %>% arrange(sentiment) %>%
+        na.omit()
+      daGraph <- ggplot(bkSent) +
+        aes(x = sentiment, fill = sentiment, weight = freq) +
+        geom_bar() +
+        scale_fill_hue() +
+        theme_minimal() + 
+        theme(axis.text.x = element_text(angle = 45))+ 
+        ggtitle(input$book2)+ theme(legend.position = "none")
+      return(daGraph)
+    }
+  })
+  
+  output$senti2 <- renderPlot(sentimentGraph2())
+  
+  
+  
+  ######### Sets up clouds for the two books - WORKS #########
+  makeCloud1 <- reactive({
+    set.seed(1234)
+    if(input$option == "cloud"){
+      bookCloud <- wordFreqsOfChosen1() %>%
+        with(wordcloud(word, n, max.words = 100))
+      return(bookCloud)
+    }
+  })
+  
+  makeCloud2 <- reactive({
+    set.seed(1234)
+    if(input$option == "cloud"){
+      bookCloud <- wordFreqsOfChosen2() %>%
+        with(wordcloud(word, n, max.words = 100))
+      return(bookCloud)
+    }
+  })
+  
+
+  output$cloud1 <- renderPlot(makeCloud1())
+  output$cloud2 <- renderPlot(makeCloud2())
+  
+  ######### Sets up frequency tables #########
+  top1 <- reactive({
+    if(input$option == "cloud"){
+      wordfreaks <- wordFreqsOfChosen1()[1:25, ]
+      colnames(wordfreaks) <- c("Words", "Frequency")
+      return(wordfreaks)
+    }
+  })
+  
+  top2 <- reactive({
+    if(input$option == "cloud"){
+      wordfreaks <- wordFreqsOfChosen2()[1:25, ]
+      colnames(wordfreaks) <- c("Words", "Frequency")
+      return(wordfreaks)
+    }
+  })
+  
+  output$freq1 <- renderTable(top1())
+  output$freq2 <- renderTable(top2())
+  
+  ######### Sets up countries for the two books - WORKS #########
+    countryData1 <- reactive({ 
+      
+    bkCount <- wordFreqsOfChosen1() #data set of word freqs
+    bkCountries <- intersect(countries, bkCount$word)#list of countries in book
+      
+    #isolates countries of interest from word frequency
+    bkCountryFreq <- bkCount %>% filter(word %in% bkCountries) %>%
+      rename(country = word) #also renames words to country
+    #makes nices labels for the map
+    nameFreq <- paste0(bkCountryFreq$country, ":", bkCountryFreq$n, sep = " ")
+    bkCountryFreq <- cbind(bkCountryFreq, nameFreq)
+      
+    #finds the countries of interest from main world data set
+    bkMini <- world %>% filter(country %in% bkCountries)
+    #combines info from world data set to the frequencies and labels
+    bkFull <- left_join(bkMini,bkCountryFreq)
+     
+    #makes latitudes and longitudes doubles
+    bkFull$lat <- as.double(bkFull[,3])
+    bkFull$long <- as.double(bkFull[,4])
+      
+    return(bkFull)#this is a dataframe
+    })
+  
+  countryData2 <- reactive({ 
     
-    bkcount <- wordFreqsOfChosen() #data set of word freqs
-    bkCountries <- intersect(countries, bkcount[,2])#list of countries in book 
+    bkCount <- wordFreqsOfChosen2() #data set of word freqs
+    bkCountries <- intersect(countries, bkCount$word)#list of countries in book
     
-    #isolates countries of interest from word frequency 
-    bkCountryFreq <- bkcount %>% filter(word %in% bkCountries) %>%
-      rename(country = word) #also renames words to country 
-    #makes nices labels for the map 
-    nameFreq <- paste(bkCountryFreq[,1], bkCountryFreq[,2], sep = " ")
+    #isolates countries of interest from word frequency
+    bkCountryFreq <- bkCount %>% filter(word %in% bkCountries) %>%
+      rename(country = word) #also renames words to country
+    #makes nices labels for the map
+    nameFreq <- paste0(bkCountryFreq$country, ":", bkCountryFreq$n, sep = " ")
     bkCountryFreq <- cbind(bkCountryFreq, nameFreq)
     
-    #finds the countries of interest from main world data set 
+    #finds the countries of interest from main world data set
     bkMini <- world %>% filter(country %in% bkCountries)
-    #combines info from world data set to the frequencies and labels 
+    #combines info from world data set to the frequencies and labels
     bkFull <- left_join(bkMini,bkCountryFreq)
     
-    #makes latitudes and longitudes doubles 
+    #makes latitudes and longitudes doubles
     bkFull$lat <- as.double(bkFull[,3])
     bkFull$long <- as.double(bkFull[,4])
     
-    return(bkFull)#this is a dataframe 
+    return(bkFull)#this is a dataframe
   })
   
-  # finalMap <- reactive({
-  #   if(input$option == "maps"){#if the user selects the map option
-  #     mapData <- countryData() #countries of interest for book
-  #     theMap <- leaflet(mapData)%>%
-  #       setView(lng = 0, lat = 0, zoom = 1)%>%
-  #       addTiles()%>%
-  #       addCircles(data = mapData, lat = ~lat, lng = ~long, weight = 8,
-  #                  radius = 300, popup = ~as.character(nameFreq))
-  #     return(theMap) #this is a list???
-  #   }
-  # })
+  ######### Sets up maps for the two books - WORKS #########
   
-  #output$mapPlot <- renderLeaflet({ finalMap() })
   
-  output$mapPlot <- renderLeaflet({
+  #output$experiment <- renderTable(countryData2())
+  
+  finalMap1 <- reactive({
     if(input$option == "maps"){#if the user selects the map option
-    leaflet(countryData())%>%
-      setView(lng = 0, lat = 0, zoom = 1)%>%
-      addTiles()%>%
-      addCircles(data = countryData(), lat = ~lat, lng = ~long, weight = 8, 
-                 radius = 300, popup = ~as.character(nameFreq))
-    } 
+      mapData <- countryData1() #countries of interest for book
+      theMap <- leaflet(mapData)%>%
+        setView(lng = 0, lat = 0, zoom = 1)%>%
+        addTiles()%>%
+        addCircles(data = mapData, lat = ~lat, lng = ~long, weight = 8,
+                   radius = 300, popup = ~as.character(nameFreq))
+      return(theMap) #this is a list???
+    }
   })
   
-  # ERROR: $ operator is invalid for atomic vectors 
-  #it might be because the typeof() returns a list based on above experimenting???
-
-  
-  
-  ######### Sets up the server stuff for the cloud ####################
-  makeCloud <- reactive({
-    set.seed(1234)
-    if(input$option == "cloud")
-      bookCloud <- wordFreqsOfChosen() %>%
-        with(wordcloud(word, n, max.words = 100))
-    return(bookCloud)
+  finalMap2 <- reactive({
+    if(input$option == "maps"){#if the user selects the map option
+      mapData <- countryData2() #countries of interest for book
+      theMap <- leaflet(mapData)%>%
+        setView(lng = 0, lat = 0, zoom = 1)%>%
+        addTiles()%>%
+        addCircles(data = mapData, lat = ~lat, lng = ~long, weight = 8,
+                   radius = 300, popup = ~as.character(nameFreq))
+      return(theMap) #this is a list???
+    }
   })
   
-  # ERROR: $ operator is invalid for atomic vectors 
-  #typeof() returns NULL for word cloud in experimentation above???? 
-  output$cloudy <- renderPlot({makeCloud()})
+  output$map1 <- renderLeaflet({finalMap1()})
+  output$map2 <- renderLeaflet({finalMap2()})
+  
   
   
 } #ENDS function()
@@ -248,6 +336,69 @@ shinyApp(ui2, server2)
 
 
 
+
+##### Paradise Lost Explorations ####
+
+#GETS THE WORD FREQUENCIES 
+bookName = "Paradise Lost" # name of book chosen 
+gutNum <- bookData[which(bookData$bookTitles == bookName),1] #gutenberg id chosen book 
+chosenBook <- gutenberg_download(gutNum) #gets book data - is a dataframe
+chosenBook %<>%
+  unnest_tokens(word, text) %>% #isolates each word into its own row 
+  anti_join(stop_words) # gets rid of the stop words 
+bkCount <-  chosenBook %>% count(word, sort = TRUE) #gets a word count 
+
+#### sentiment analysis experimentation ####
+snrc <- get_sentiments("nrc")
+bkSent <- inner_join(bkCount,snrc) 
+bkSent <- bkSent %>% group_by(sentiment) %>%
+  summarise(freq = n()) %>% arrange(sentiment) %>%
+  na.omit()
+View(bkSent)
+
+ggplot(bkSent) +
+  aes(x = sentiment, fill = sentiment, weight = freq) +
+  geom_bar() +
+  scale_fill_hue() +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90))+ 
+  ggtitle(bookName)+ theme(legend.position = "none")
+
+#### word cloud experimentation ####
+# bookCloud <- bkCount %>%
+#   with(wordcloud(word, n, max.words = 10))
+# typeof(bookCloud) #this is Null ???? 
+wordfreaks <- bkCount[1:30, ]
+colnames(wordfreaks) <- c("Word", "Frequency")
+
+#GETS THE COUNTRIES 
+bkCountries <- intersect(countries, bkCount$word)#list of countries in book
+#isolates countries of interest from word frequency
+bkCountryFreq <- bkCount %>% filter(word %in% bkCountries) %>%
+  rename(country = word) #also renames words to country
+#makes nices labels for the map
+cName = c(bkCountryFreq[1:length(bkCountryFreq$n),1] )
+cFreq = c(bkCountryFreq[1:length(bkCountryFreq$n),2] )
+nameFreq <- paste0(bkCountryFreq$country, ":", bkCountryFreq$n, sep = " ")
+bkCountryFreq <- cbind(bkCountryFreq, nameFreq)
+
+#finds the countries of interest from main world data set
+bkMini <- world %>% filter(country %in% bkCountries)
+#combines info from world data set to the frequencies and labels
+bkFull <- left_join(bkMini,bkCountryFreq)
+
+#makes latitudes and longitudes doubles
+bkFull$lat <- as.double(bkFull[,3])
+bkFull$long <- as.double(bkFull[,4])
+
+#create an interactive map 
+# plMap <- leaflet(bkFull)%>%
+#   setView(lng = 0, lat = 0, zoom = 1)%>%
+#   addTiles()%>%
+#   addCircles(data = bkFull, lat = ~lat, lng = ~long, weight = 8,
+#              radius = 300, popup = ~as.character(nameFreq))
+# typeof(plMap)
+# plMap
 
 
 
